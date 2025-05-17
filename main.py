@@ -132,7 +132,6 @@ async def update_json_file(file_id: str, payload: AnyJson):
         if not file:
             raise HTTPException(status_code=404, detail="Файл не найден")
 
-        # Удаляем старый файл если имя изменилось
         old_file_path = os.path.join(SAVE_DIR, file.readable_name)
         if os.path.exists(old_file_path) and file.readable_name != data["title"]:
             os.remove(old_file_path)
