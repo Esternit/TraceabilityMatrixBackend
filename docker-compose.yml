@@ -1,16 +1,35 @@
-version: "3.8"
-
 services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./saved_data:/app/saved_data
+    env_file:
+      - .env
+    depends_on:
+      - db
+    networks:
+      - app-network
+
   db:
-    image: postgres:latest
+    image: postgres:15
+    env_file:
+      - .env
     environment:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: pass
-      POSTGRES_DB: db
-    container_name: dbpg-mtg
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
     volumes:
       - ./database/postgres/data:/var/lib/postgresql/data
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
-    restart: always
     ports:
       - "5432:5432"
+    networks:
+      - app-network
+
+volumes:
+  postgres_data:
+
+networks:
+  app-network:
+    driver: bridge

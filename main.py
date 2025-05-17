@@ -6,6 +6,7 @@ from datetime import datetime
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import RootModel
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker, DeclarativeBase, Mapped, mapped_column
@@ -19,6 +20,15 @@ from configuration import  DB_USER, DB_PASSWORD, DB_NAME, DB_HOST, DB_PORT, WORD
 DATABASE_URL = f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 
 app = FastAPI()
+
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 SAVE_DIR = "saved_data"
 os.makedirs(SAVE_DIR, exist_ok=True)
@@ -50,6 +60,10 @@ def generate_readable_name() -> str:
 @app.post("/save-json")
 async def save_json(payload: AnyJson):
     data = payload.root
+    
+    if "title" not in data:
+        raise HTTPException(status_code=400, detail="Поле 'title' обязательно в JSON")
+        
     content_hash = compute_hash(data)
 
     async with async_session() as session:
@@ -61,17 +75,16 @@ async def save_json(payload: AnyJson):
                 content={"message": "Ой, кажется у вас дубликат :(", "file_name": existing.readable_name, "id": str(existing.id)}
             )
 
-        readable_name = generate_readable_name()
-        file_path = os.path.join(SAVE_DIR, readable_name)
+        file_path = os.path.join(SAVE_DIR, data["title"] + ".json")
 
         with open(file_path, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=4)
 
-        new_record = JSONFile(readable_name=readable_name, hash=content_hash)
+        new_record = JSONFile(readable_name=data["title"], hash=content_hash)
         session.add(new_record)
         await session.commit()
 
-        return JSONResponse(content={"message": "JSON сохранён", "file_name": readable_name, "id": str(new_record.id)})
+        return JSONResponse(content={"message": "JSON сохранён", "file_name": data["title"], "id": str(new_record.id)})
 
 @app.get("/json-files")
 async def list_json_files():
@@ -91,9 +104,46 @@ async def get_json_file(file_id: str):
         file = result.scalar_one_or_none()
         if not file:
             raise HTTPException(status_code=404, detail="Файл не найден")
-        file_path = os.path.join(SAVE_DIR, file.readable_name)
+        file_path = os.path.join(SAVE_DIR, file.readable_name + ".json")
         if not os.path.exists(file_path):
             raise HTTPException(status_code=404, detail="Файл не найден на диске")
         with open(file_path, "r", encoding="utf-8") as f:
             data = json.load(f)
         return data
+
+@app.put("/json-files/{file_id}")
+async def update_json_file(file_id: str, payload: AnyJson):
+    try:
+        file_uuid = uuid.UUID(file_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Неправильный формат UUID")
+
+    data = payload.root
+    
+    if "title" not in data:
+        raise HTTPException(status_code=400, detail="Поле 'title' обязательно в JSON")
+        
+    content_hash = compute_hash(data)
+
+    async with async_session() as session:
+        result = await session.execute(select(JSONFile).where(JSONFile.id == file_uuid))
+        file = result.scalar_one_or_none()
+        
+        if not file:
+            raise HTTPException(status_code=404, detail="Файл не найден")
+
+        # Удаляем старый файл если имя изменилось
+        old_file_path = os.path.join(SAVE_DIR, file.readable_name)
+        if os.path.exists(old_file_path) and file.readable_name != data["title"]:
+            os.remove(old_file_path)
+
+        file_path = os.path.join(SAVE_DIR, data["title"])
+        
+        with open(file_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
+
+        file.readable_name = data["title"]
+        file.hash = content_hash
+        await session.commit()
+
+        return JSONResponse(content={"message": "JSON обновлён", "file_name": data["title"], "id": str(file.id)})

@@ -2,3 +2,4 @@ __pycache__/
 database/
 venv/
 .env
+saved_data/
