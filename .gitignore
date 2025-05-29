@@ -3,3 +3,4 @@ database/
 venv/
 .env
 saved_data/
+*.json

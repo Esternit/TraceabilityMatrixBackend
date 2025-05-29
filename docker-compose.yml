@@ -1,16 +1,16 @@
 services:
-  app:
-    build: .
-    ports:
-      - "8000:8000"
-    volumes:
-      - ./saved_data:/app/saved_data
-    env_file:
-      - .env
-    depends_on:
-      - db
-    networks:
-      - app-network
+  # app:
+  #   build: .
+  #   ports:
+  #     - "8000:8000"
+  #   volumes:
+  #     - ./saved_data:/app/saved_data
+  #   env_file:
+  #     - .env
+  #   depends_on:
+  #     - db
+  #   networks:
+  #     - app-network
 
   db:
     image: postgres:15

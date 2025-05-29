@@ -136,7 +136,7 @@ async def update_json_file(file_id: str, payload: AnyJson):
         if os.path.exists(old_file_path) and file.readable_name != data["title"]:
             os.remove(old_file_path)
 
-        file_path = os.path.join(SAVE_DIR, data["title"])
+        file_path = os.path.join(SAVE_DIR, data["title"] + ".json")
         
         with open(file_path, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=4)
